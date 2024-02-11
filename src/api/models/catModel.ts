@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import {Cat} from '../../types/DBTypes';
 
-const CatSchema = new mongoose.Schema<Cat>({
+const CatSchema = new mongoose.Schema({
   cat_name: {
     type: String,
     required: true,
@@ -18,7 +18,6 @@ const CatSchema = new mongoose.Schema<Cat>({
   birthdate: {
     type: Date,
     required: true,
-    max: Date.now(),
   },
   location: {
     type: {
@@ -32,18 +31,9 @@ const CatSchema = new mongoose.Schema<Cat>({
     },
   },
   owner: {
-    _id: {
-      type: mongoose.Schema.Types.ObjectId,
-      required: true,
-    },
-    user_name: {
-      type: String,
-      required: true,
-    },
-    email: {
-      type: String,
-      required: true,
-    },
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true,
   },
 });
 

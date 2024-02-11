@@ -1,6 +1,5 @@
 import {Request, Response, NextFunction} from 'express';
 import {User, UserOutput} from '../../types/DBTypes';
-import {MessageResponse} from '../../types/MessageTypes';
 import userModel from '../models/userModel';
 import bcrypt from 'bcryptjs';
 
@@ -43,26 +42,28 @@ const userPost = async (
   next: NextFunction
 ) => {
   try {
-    if (!req.body.role) {
-      req.body.role = 'user';
-    }
     const salt = bcrypt.genSaltSync(10);
+
     const userInput = {
       user_name: req.body.user_name,
       email: req.body.email,
       password: bcrypt.hashSync(req.body.password, salt),
-      role: req.body.role,
+      role: 'user',
     };
+    console.log(userInput);
 
     const user = await userModel.create(userInput);
+
     const userOutput: UserOutput = {
       _id: user._id,
       user_name: user.user_name,
       email: user.email,
     };
-    res.status(200).json({message: 'User created', data: userOutput});
-  } catch (err) {
-    next(err);
+
+    console.log(user);
+    res.json({message: 'User created!', data: userOutput});
+  } catch (error) {
+    next(error);
   }
 };
 
@@ -95,27 +96,37 @@ const userDeleteCurrent = async (
   next: NextFunction
 ) => {
   try {
-    const userId = (req.user as User)._id;
-    const deletedUser = await userModel
-      .findByIdAndDelete(userId, req.body)
+    const id = (res.locals.user as User)._id;
+    const user = await userModel
+      .findByIdAndDelete(id, req.body)
       .select('-password -role');
-    if (!deletedUser) {
+    if (!user) {
       res.status(404);
       console.log('User not found');
       return;
     }
-    res.json({message: 'User deleted', data: deletedUser as UserOutput});
-  } catch (error) {
-    next(error);
+    res.json({message: 'User deleted', data: user as UserOutput});
+  } catch (err) {
+    next(err);
   }
 };
 
-const checkToken = (
+const checkToken = async (
   req: Request,
   res: Response<UserOutput>,
   next: NextFunction
 ) => {
-  res.json(res.locals.user);
+  if (!res.locals.user) {
+    res.status(403);
+    console.log('User not valid');
+  } else {
+    const userOutput: UserOutput = {
+      _id: (res.locals.user as User)._id,
+      email: (res.locals.user as User).email,
+      user_name: (res.locals.user as User).user_name,
+    };
+    res.json(userOutput);
+  }
 };
 
 export {

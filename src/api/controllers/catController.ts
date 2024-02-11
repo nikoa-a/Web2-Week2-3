@@ -51,21 +51,25 @@ const catGetByBoundingBox = async (
   }
 };
 
-const catPutAdmin = async (req: Request, res: Response, next: NextFunction) => {
+const catPutAdmin = async (
+  req: Request<{id: string}, {}, Omit<Cat, '_id'>>,
+  res: Response,
+  next: NextFunction
+) => {
   try {
-    const {catId} = req.params;
-    const {ownerId} = req.body;
-    const updatedCat = await catModel.findByIdAndUpdate(
-      catId,
-      {'owner._id': ownerId},
-      {new: true}
-    );
-    if (!updatedCat) {
+    if (req.user && (req.user as User).role !== 'admin') {
+      throw new CustomError('Access restricted', 403);
+    }
+    req.body.location = res.locals.coords;
+    const cat = await catModel
+      .findByIdAndUpdate(req.params.id, req.body, {new: true})
+      .select('-__v');
+    if (!cat) {
       throw new CustomError('Cat not found', 404);
     }
-    res.json(updatedCat);
-  } catch (error) {
-    next(error);
+    res.json({message: 'Cat updated', data: cat});
+  } catch (err) {
+    next(err);
   }
 };
 
@@ -92,90 +96,60 @@ const catDelete = async (
   next: NextFunction
 ) => {
   try {
-    // admin can delete any animal, user can delete only their own animals
-    const options =
-      res.locals.user.role === 'admin' ? {} : {owner: res.locals.user._id};
-
-    const animal = (await catModel.findOneAndDelete({
+    const cat = (await catModel.findOneAndDelete({
       _id: req.params.id,
-      ...options,
+      owner: res.locals.user._id,
     })) as unknown as Cat;
 
-    if (!animal) {
-      throw new CustomError('Cat not found or not your cat', 404);
+    if (!cat) {
+      throw new CustomError('Cat not found', 404);
     }
-    res.json({message: 'Cat deleted', _id: animal._id});
-  } catch (error) {
-    next(error);
+    res.json({message: 'Cat deleted', data: cat});
+  } catch (err) {
+    next(err);
   }
 };
 
 const catPut = async (
-  req: Request<{id: string}, {}, Cat>,
+  req: Request<{id: string}, {}, Omit<Cat, '_id'>>,
   res: Response,
   next: NextFunction
 ) => {
   try {
-    const catId = req.params.id;
-
-    // Create an object to hold the updated fields
-    const updatedCat: Partial<Cat> = {};
-
-    if (req.body.cat_name) {
-      updatedCat.cat_name = req.body.cat_name;
+    if (req.user && (req.user as User)._id !== (req.body as Cat).owner) {
+      throw new CustomError('Access restricted', 403);
     }
-
-    if (req.body.weight) {
-      updatedCat.weight = req.body.weight;
+    req.body.location = res.locals.coords;
+    const cat = await catModel
+      .findByIdAndUpdate(req.params.id, req.body, {
+        new: true,
+      })
+      .select('-__v');
+    if (!cat) {
+      throw new CustomError('Cat not found', 404);
     }
-
-    if (req.body.birthdate) {
-      updatedCat.birthdate = req.body.birthdate;
-    }
-
-    // Check if there are any fields to update
-    if (Object.keys(updatedCat).length === 0) {
-      // No fields to update, return a message or error as needed
-      return res.status(400).json({error: 'No fields to update'});
-    }
-
-    const updatedCatDocument = await catModel.findByIdAndUpdate(
-      catId,
-      updatedCat,
-      {
-        new: true, // Return the updated document
-        runValidators: true, // Run mongoose validation checks
-      }
-    );
-
-    if (!updatedCatDocument) {
-      next(new CustomError('Cat not found', 404));
-      return;
-    }
-
-    if (
-      updatedCatDocument.owner.toString() !== (req.user as User)._id.toString()
-    ) {
-      next(new CustomError('Not authorized', 401));
-      return;
-    }
-
-    res.json(res.json({message: 'Cat modified', data: updatedCatDocument}));
-  } catch (error) {
-    next(new CustomError('Database error', 500));
+    res.json({message: 'Cat updated', data: cat});
+  } catch (err) {
+    next(err);
   }
 };
 
-const catGet = async (req: Request, res: Response, next: NextFunction) => {
+const catGet = async (
+  req: Request<{id: string}>,
+  res: Response<Cat>,
+  next: NextFunction
+) => {
   try {
-    const {catId} = req.params;
-    const cat = await catModel.findById(catId);
+    const cat = await catModel.findById(req.params.id).populate({
+      path: 'owner',
+      select: '-__v -password -role',
+    });
     if (!cat) {
       throw new CustomError('Cat not found', 404);
     }
     res.json(cat);
-  } catch (error) {
-    next(error);
+  } catch (err) {
+    next(err);
   }
 };
 
