@@ -1,11 +1,11 @@
 import express from 'express';
 import {
-  checkToken,
   userDeleteCurrent,
   userGet,
   userListGet,
   userPost,
   userPutCurrent,
+  checkToken,
 } from '../controllers/userController';
 import {authenticate} from '../../middlewares';
 
